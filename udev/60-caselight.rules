@@ -1,0 +1,2 @@
+# Let logged-in users access ASUS Aura USB mainboard LED controllers.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1867|1872|18a3|18a5|18f3|1939|19af|1aa6", TAG+="uaccess"

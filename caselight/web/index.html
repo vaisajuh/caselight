@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Case Lighting</title>
+<style>
+  :root {
+    --bg: #f4f4f6; --panel: #ffffff; --text: #18181b; --muted: #6b6b75;
+    --border: #dcdce2; --accent: #ff2d55;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f0f12; --panel: #1a1a20; --text: #ececf1; --muted: #9a9aa6; --border: #2c2c35; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  section { background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+            padding: 16px; margin-bottom: 14px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+       margin: 0 0 10px; font-weight: 600; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs button, .chips button { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+       background: transparent; color: var(--text); cursor: pointer; font: inherit; }
+  .tabs button.on, .chips button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { flex: 0 0 auto; font-size: 13px; padding: 6px 10px; }
+  .row { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+  .row label { width: 90px; color: var(--muted); font-size: 13px; }
+  .row input[type=range] { flex: 1; accent-color: var(--accent); }
+  input[type=color] { width: 56px; height: 36px; border: none; background: none; padding: 0; cursor: pointer; }
+  .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+  .swatches button { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); cursor: pointer; }
+  #preview { height: 10px; border-radius: 5px; margin-top: 4px; background: var(--accent); }
+  #status { font-size: 13px; color: var(--muted); min-height: 1.4em; margin-top: 8px; }
+  #status.err { color: #e5484d; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Case Lighting</h1>
+  <div class="sub" id="dev">Connecting…</div>
+
+  <section>
+    <h2>Effect</h2>
+    <div class="tabs">
+      <button data-kind="hardware" class="on">Hardware</button>
+      <button data-kind="software">Software</button>
+    </div>
+    <div class="chips" id="modes"></div>
+    <div class="hint" id="kindHint"></div>
+  </section>
+
+  <section>
+    <h2>Color</h2>
+    <div class="row">
+      <input type="color" id="color" value="#ff0000">
+      <div class="swatches" id="swatches"></div>
+    </div>
+    <div class="row"><label>Brightness</label><input type="range" id="brightness" min="0" max="1" step="0.01" value="1"></div>
+    <div class="row"><label>Speed</label><input type="range" id="speed" min="0.1" max="4" step="0.1" value="1"></div>
+    <div id="preview"></div>
+  </section>
+
+  <section>
+    <h2>Zones</h2>
+    <div class="chips" id="zones"></div>
+  </section>
+
+  <div id="status"></div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const SWATCHES = ["#ff0000","#ff6a00","#ffd000","#00ff40","#00e5ff","#0050ff","#8a2be2","#ff00c8","#ffffff"];
+let info, state = { kind: "hardware", mode: "static", color: "#ff0000", zones: ["all"], speed: 1, brightness: 1 };
+let timer;
+
+function status(msg, err) { const el = $("#status"); el.textContent = msg; el.className = err ? "err" : ""; }
+
+function chips(el, items, isOn, onClick) {
+  el.innerHTML = "";
+  for (const it of items) {
+    const b = document.createElement("button");
+    b.textContent = it.label ?? it; b.className = isOn(it) ? "on" : "";
+    b.onclick = () => onClick(it);
+    el.appendChild(b);
+  }
+}
+
+function render() {
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.kind === state.kind));
+  const list = state.kind === "hardware" ? info.hardware_modes : info.software_effects;
+  chips($("#modes"), list, m => m === state.mode, m => { state.mode = m; render(); send(); });
+  $("#kindHint").textContent = state.kind === "hardware"
+    ? "Runs on the controller itself and keeps going after you close caselight."
+    : "Per-LED animation from the PC. Needs caselight running and ARGB LED counts set.";
+  const zoneItems = [{ label: "all", name: "all" }, ...info.zones.map(z => ({ label: `${z.name} (${z.leds})`, name: z.name }))];
+  chips($("#zones"), zoneItems, z => state.zones.includes(z.name), z => {
+    if (z.name === "all") state.zones = ["all"];
+    else {
+      let s = state.zones.filter(n => n !== "all");
+      s = s.includes(z.name) ? s.filter(n => n !== z.name) : [...s, z.name];
+      state.zones = s.length ? s : ["all"];
+    }
+    render(); send();
+  });
+  $("#color").value = state.color; $("#brightness").value = state.brightness; $("#speed").value = state.speed;
+  $("#preview").style.background = state.color;
+  $("#preview").style.opacity = Math.max(0.15, state.brightness);
+}
+
+function send() {
+  clearTimeout(timer);
+  timer = setTimeout(async () => {
+    try {
+      const r = await fetch("/api/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state) });
+      const j = await r.json();
+      r.ok ? status(`Applied ${state.mode}`) : status(j.error, true);
+    } catch (e) { status("Lost connection to caselight", true); }
+  }, 80);
+}
+
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  state.kind = b.dataset.kind;
+  state.mode = state.kind === "hardware" ? "static" : "rainbow-wave";
+  render(); send();
+});
+$("#color").oninput = e => { state.color = e.target.value; render(); send(); };
+$("#brightness").oninput = e => { state.brightness = +e.target.value; render(); send(); };
+$("#speed").oninput = e => { state.speed = +e.target.value; send(); };
+for (const c of SWATCHES) {
+  const b = document.createElement("button"); b.style.background = c; b.title = c;
+  b.onclick = () => { state.color = c; render(); send(); };
+  $("#swatches").appendChild(b);
+}
+
+(async () => {
+  try {
+    info = await (await fetch("/api/state")).json();
+    state = { ...state, ...info.last };
+    $("#dev").textContent = `ASUS Aura · ${info.device.path} · firmware ${info.device.firmware}`;
+    render();
+  } catch (e) { status("Could not reach caselight", true); }
+})();
+</script>
+</body>
+</html>
