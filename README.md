@@ -1,12 +1,22 @@
-# caselight
+# caselight: motherboard and case lighting for Linux
 
 [![Tests](https://github.com/vaisajuh/caselight/actions/workflows/tests.yml/badge.svg)](https://github.com/vaisajuh/caselight/actions/workflows/tests.yml)
 
-Control the RGB lighting connected to an ASUS motherboard's **Aura USB LED controller**
-(onboard LEDs, 12V RGB headers and 5V ARGB headers) on Linux. Pure Python, no dependencies.
+Control the RGB lighting of your motherboard and everything plugged into it
+(onboard LEDs, 12V RGB headers, 5V ARGB fans and strips) on Linux, without
+the vendor's Windows software. Pure Python, no dependencies.
 
-Built for the ASUS TUF GAMING B550-PLUS (`0b05:1939`); other Aura USB mainboard
-controllers (`18f3`, `19af`, `1aa6`, ...) should work too.
+The goal is to cover all the major motherboard brands. **Today it supports
+ASUS Aura**, and other brands are welcome as contributions (see
+[Adding a motherboard brand](#adding-a-motherboard-brand)).
+
+| Brand | Controller | Status |
+| --- | --- | --- |
+| ASUS | Aura USB, TUF GAMING B550-PLUS (`0b05:1939`) | ✅ Tested by maintainer |
+| ASUS | Other Aura USB mainboard controllers (`1867`, `1872`, `18a3`, `18a5`, `18f3`, `19af`, `1aa6`) | 🟡 Untested: same protocol, should work |
+| MSI | Mystic Light | Wanted |
+| Gigabyte | RGB Fusion 2 | Wanted |
+| ASRock | Polychrome | Wanted |
 
 ## Install
 
@@ -80,6 +90,58 @@ Based on the protocol documented by the [OpenRGB](https://openrgb.org) project.
 
 The protocol follows the one documented by the [OpenRGB](https://openrgb.org) project.
 
+## How device support works
+
+caselight is maintained by one person with one motherboard. Support for other
+boards and brands comes from the people who own them:
+
+1. You write or fix the driver and test it on your own hardware.
+2. You open a pull request that includes a hardware test report (the pull
+   request template asks for it).
+3. The maintainer reviews the code: it is readable, talks only to its own
+   device, uses only the Python standard library, and comes with an emulated
+   device and tests. The maintainer can't test your hardware, so the merge
+   relies on your test report.
+4. After the merge you are listed as the driver's maintainer below, and asked
+   to review future changes to it.
+
+The status column above shows who has tested a device: ✅ tested by
+maintainer, 🤝 community tested (by the named contributor), 🟡 untested. If a
+driver breaks and nobody with the hardware can fix it, it is marked
+unmaintained and may be removed.
+
+| Driver | Maintainer |
+| --- | --- |
+| ASUS Aura (`caselight/aura.py`) | [@vaisajuh](https://github.com/vaisajuh) |
+
+> **Use at your own risk.** caselight is provided as is, without warranty
+> (see [LICENSE](LICENSE)). Drivers avoid commands that change firmware or
+> settings permanently, but a bug in a driver or in a device's firmware can
+> still leave the lights in an odd state.
+
+## Adding a motherboard brand
+
+The ASUS-specific code lives in `caselight/aura.py`: finding the controller,
+the USB protocol and the list of hardware modes. The software effects
+(`effects.py`), settings (`config.py`), CLI and web UI are shared. A new
+brand, for example MSI Mystic Light, needs:
+
+- a module next to it (`caselight/msi.py`) with a controller class offering
+  the same methods as `AuraController`: `zones`, `set_mode()`,
+  `enter_direct()`, `send_direct()` and `close()`
+- detection, so caselight picks the right controller automatically
+- an emulated controller and tests, like `FakeController` in
+  `tests/test_caselight.py`
+- a line for its USB vendor ID in `udev/60-caselight.rules`
+
+The first new brand will also have to make a few shared parts brand-neutral:
+the hardware mode names come from `aura.MODES` today, and the CLI opens an
+`AuraController` directly. That pull request is the right place to do it.
+
+The [OpenRGB](https://openrgb.org) project documents many of these
+protocols. Learning from its documentation is fine, but don't copy its code:
+OpenRGB is GPL licensed and caselight is MIT.
+
 ## Contributing
 
 Bug reports and pull requests are welcome.
@@ -95,7 +157,8 @@ Bug reports and pull requests are welcome.
   merged here, clcr's nightly sync opens a pull request there with the change.
   If you change functions or classes in these files, say so in your pull
   request, since clcr's GUI uses them.
-- Want to add a different device or brand? See clcr's
+- Adding a motherboard brand? See [above](#adding-a-motherboard-brand).
+  Other kinds of devices: see clcr's
   [CONTRIBUTING.md](https://github.com/vaisajuh/clcr/blob/main/CONTRIBUTING.md#adding-a-new-device).
 
 ## Maintainer
@@ -107,8 +170,8 @@ Maintained by **Juha Väisänen** ([@vaisajuh](https://github.com/vaisajuh)).
 Part of a small set of Linux lighting tools, all pure Python with no third-party dependencies:
 
 - [clcr](https://github.com/vaisajuh/clcr): Computer Lighting Control Center, one desktop app for lighting across brands and devices (bundles the drivers below)
-- [akkoctl](https://github.com/vaisajuh/akkoctl): Akko 5075B Plus-S keyboard: RGB backlight, sidelights, keymap and macros
-- **caselight** (this repo): ASUS Aura USB controller: motherboard and ARGB header lighting
+- [viactl](https://github.com/vaisajuh/viactl): VIA/QMK keyboards (tested on Akko 5075B Plus-S): RGB backlight, sidelights, keymap and macros
+- **caselight** (this repo): motherboard and case lighting (currently ASUS Aura)
 - [logiled](https://github.com/vaisajuh/logiled): Logitech G502 HERO mouse: lighting, DPI, polling rate and onboard mode
 
 ## License

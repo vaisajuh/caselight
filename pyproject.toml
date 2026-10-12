@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "caselight"
 version = "0.1.0"
-description = "Control ASUS Aura (USB) case and motherboard lighting on Linux"
+description = "Motherboard and case RGB lighting control for Linux (currently ASUS Aura)"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = []
